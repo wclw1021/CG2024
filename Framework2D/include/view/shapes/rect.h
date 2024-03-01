@@ -14,11 +14,15 @@ class Rect : public Shape
         float start_point_x,
         float start_point_y,
         float end_point_x,
-        float end_point_y)
+        float end_point_y,
+        float rounding,
+        float width)
         : start_point_x_(start_point_x),
           start_point_y_(start_point_y),
           end_point_x_(end_point_x),
-          end_point_y_(end_point_y)
+          end_point_y_(end_point_y),
+          rounding_(rounding),
+          width_(width)
     {
     }
 
@@ -36,5 +40,6 @@ class Rect : public Shape
     // Coordinates of the top-left and bottom-right corners of the rectangle
     float start_point_x_ = 0.0f, start_point_y_ = 0.0f;
     float end_point_x_ = 0.0f, end_point_y_ = 0.0f;
+    float rounding_ = 0.0f, width_;
 };
 }  // namespace USTC_CG

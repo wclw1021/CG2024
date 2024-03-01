@@ -14,11 +14,13 @@ class Line : public Shape
         float start_point_x,
         float start_point_y,
         float end_point_x,
-        float end_point_y)
+        float end_point_y,
+        float width)
         : start_point_x_(start_point_x),
           start_point_y_(start_point_y),
           end_point_x_(end_point_x),
-          end_point_y_(end_point_y)
+          end_point_y_(end_point_y),
+          width_(width)
     {
     }
 
@@ -32,6 +34,6 @@ class Line : public Shape
     void update(float x, float y) override;
 
    private:
-    float start_point_x_, start_point_y_, end_point_x_, end_point_y_;
+    float start_point_x_, start_point_y_, end_point_x_, end_point_y_, width_;
 };
 }  // namespace USTC_CG

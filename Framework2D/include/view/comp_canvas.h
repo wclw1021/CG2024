@@ -28,13 +28,20 @@ class Canvas : public Component
         kLine = 1,
         kRect = 2,
         kEllipse = 3,
+        kEllipse_parm = 30,
         kPolygon = 4,
+        kFree = 5,
     };
 
     // Shape type setters.
     void set_default();
     void set_line();
     void set_rect();
+    void set_elli();
+    void set_elli_std();
+    void set_poly();
+    void set_free();
+    void set_width();
 
     // Clears all shapes from the canvas.
     void clear_shape_list();
@@ -45,6 +52,8 @@ class Canvas : public Component
     // Controls the visibility of the canvas background.
     void show_background(bool flag);
 
+    float radius_x_, radius_y_, angle_, rounding_, width_;
+   ImVec2 mouse_pos_in_canvas() const;
    private:
     // Drawing functions.
     void draw_background();
@@ -52,11 +61,12 @@ class Canvas : public Component
 
     // Event handlers for mouse interactions.
     void mouse_click_event();
+    void mouse_right_click_event();
     void mouse_move_event();
     void mouse_release_event();
 
     // Calculates mouse's relative position in the canvas.
-    ImVec2 mouse_pos_in_canvas() const;
+ 
 
     // Canvas attributes.
     ImVec2 canvas_min_;         // Top-left corner of the canvas.
@@ -74,8 +84,10 @@ class Canvas : public Component
 
     // Current shape being drawn.
     ShapeType shape_type_;
-    ImVec2 start_point_, end_point_;
     std::shared_ptr<Shape> current_shape_;
+    ImVec2 start_point_, end_point_;
+    ImVec2 center_point_;
+    std::vector<ImVec2> points_;
 
     // List of shapes drawn on the canvas.
     std::vector<std::shared_ptr<Shape>> shape_list_;
