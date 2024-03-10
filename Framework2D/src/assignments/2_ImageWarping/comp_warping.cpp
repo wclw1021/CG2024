@@ -1,5 +1,9 @@
 #include "comp_warping.h"
-
+#include "warping.h"
+#include "fish.h"
+#include "IDW.h"
+#include "RBF.h"
+#include "MLS.h"
 #include <cmath>
 
 namespace USTC_CG
@@ -105,50 +109,24 @@ void CompWarping::gray_scale()
     // After change the image, we should reload the image data to the renderer
     update();
 }
-void CompWarping::warping()
+
+void CompWarping::set_fish() 
 {
-    // HW2_TODO: You should implement your own warping function that interpolate
-    // the selected points.
-    // You can design a class for such warping operations, utilizing the
-    // encapsulation, inheritance, and polymorphism features of C++. More files
-    // like "*.h", "*.cpp" can be added to this directory or anywhere you like.
-
-    // Create a new image to store the result
-    Image warped_image(*data_);
-    // Initialize the color of result image
-    for (int y = 0; y < data_->height(); ++y)
-    {
-        for (int x = 0; x < data_->width(); ++x)
-        {
-            warped_image.set_pixel(x, y, { 0, 0, 0 });
-        }
-    }
-
-    // Example: (simplified) "fish-eye" warping
-    // For each (x, y) from the input image, the "fish-eye" warping transfer it
-    // to (x', y') in the new image:
-    // Note: For this transformation ("fish-eye" warping), one can also
-    // calculate the inverse (x', y') -> (x, y) to fill in the "gaps".
-    for (int y = 0; y < data_->height(); ++y)
-    {
-        for (int x = 0; x < data_->width(); ++x)
-        {
-            // Apply warping function to (x, y), and we can get (x', y')
-            auto [new_x, new_y] =
-                fisheye_warping(x, y, data_->width(), data_->height());
-            // Copy the color from the original image to the result image
-            if (new_x >= 0 && new_x < data_->width() && new_y >= 0 &&
-                new_y < data_->height())
-            {
-                std::vector<unsigned char> pixel = data_->get_pixel(x, y);
-                warped_image.set_pixel(new_x, new_y, pixel);
-            }
-        }
-    }
-
-    *data_ = std::move(warped_image);
-    update();
+    warp_ = std::make_shared<Fish>();
 }
+void CompWarping::set_IDW() 
+{
+    warp_ = std::make_shared<IDW>(start_points_, end_points_);
+}
+void CompWarping::set_RBF() 
+{
+     warp_ = std::make_shared<RBF>(start_points_, end_points_);
+}
+void CompWarping::set_MLS() 
+{
+     warp_ = std::make_shared<MLS>(start_points_, end_points_);
+}
+
 void CompWarping::restore()
 {
     *data_ = *back_up_;
@@ -213,28 +191,38 @@ void CompWarping::init_selections()
     start_points_.clear();
     end_points_.clear();
 }
-
-std::pair<int, int>
-CompWarping::fisheye_warping(int x, int y, int width, int height)
+void CompWarping::warping()
 {
-    float center_x = width / 2.0f;
-    float center_y = height / 2.0f;
-    float dx = x - center_x;
-    float dy = y - center_y;
-    float distance = std::sqrt(dx * dx + dy * dy);
-
-    // Simple non-linear transformation r -> r' = f(r)
-    float new_distance = std::sqrt(distance) * 10;
-
-    if (distance == 0)
+    // Create a new image to store the result
+    Image warped_image(*data_);
+    // Initialize the color of result image
+    for (int y = 0; y < data_->height(); ++y)
     {
-        return { static_cast<int>(center_x), static_cast<int>(center_y) };
+        for (int x = 0; x < data_->width(); ++x)
+        {
+            warped_image.set_pixel(x, y, { 0, 0, 0 });
+        }
     }
-    // (x', y')
-    float ratio = new_distance / distance;
-    int new_x = static_cast<int>(center_x + dx * ratio);
-    int new_y = static_cast<int>(center_y + dy * ratio);
+    for (int y = 0; y < data_->height(); ++y)
+    {
+        for (int x = 0; x < data_->width(); ++x)
+        {
+            // Apply warping function to (x, y), and we can get (x', y')
+            // Fish fish;
+            auto [new_x, new_y] =
+                warp_->warp(x, y, data_->width(), data_->height());
 
-    return { new_x, new_y };
+            // Copy the color from the original image to the result image
+            if (new_x >= 0 && new_x < data_->width() && new_y >= 0 &&
+                new_y < data_->height())
+            {
+                std::vector<unsigned char> pixel = data_->get_pixel(x, y);
+                warped_image.set_pixel(new_x, new_y, pixel);
+            }
+        }
+    }
+
+    *data_ = std::move(warped_image);
+    update();
 }
 }  // namespace USTC_CG

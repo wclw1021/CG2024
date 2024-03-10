@@ -3,6 +3,7 @@
 #include <ImGuiFileDialog.h>
 #include "view/comp_canvas.h"
 #include <iostream>
+#include <view/comp_image.h>
 
 namespace USTC_CG
 {
