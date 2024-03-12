@@ -18,9 +18,9 @@ void Rect::draw(const Config& config) const
             config.line_color[1],
             config.line_color[2],
             config.line_color[3]),
-        0.f,  // No rounding of corners
+        rounding_,
         ImDrawFlags_None,
-        config.line_thickness);
+        width_);
 }
 
 void Rect::update(float x, float y)

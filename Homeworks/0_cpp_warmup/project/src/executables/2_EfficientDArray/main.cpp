@@ -15,6 +15,16 @@ int main(int argc, char** argv) {
 	a.InsertAt(0, 4.1);
 	a.Print();
 
+<<<<<<< HEAD
+	DArray acopy = a; 
+	acopy.Print();
+
+	DArray acopy2(a); 
+	acopy2.Print();
+
+	DArray acopy3, acopy4;
+	acopy4 = acopy3 = a; 
+=======
 	DArray acopy = a; // 此处用到了拷贝构造函数
 	acopy.Print();
 
@@ -23,6 +33,7 @@ int main(int argc, char** argv) {
 
 	DArray acopy3, acopy4;
 	acopy4 = acopy3 = a; // 此处用到了赋值操作符号"="的重载
+>>>>>>> upstream/main
 	acopy3.Print();
 	acopy4.Print();
 

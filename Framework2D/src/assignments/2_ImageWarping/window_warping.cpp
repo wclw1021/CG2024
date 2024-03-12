@@ -69,13 +69,39 @@ void ImageWarping::draw_toolbar()
             p_image_->init_selections();
             p_image_->enable_selecting(true);
         }
-        if (ImGui::MenuItem("Warping") && p_image_)
+        if (ImGui::BeginMenu("Warping"))
         {
-            p_image_->enable_selecting(false);
-            p_image_->warping();
-            p_image_->init_selections();
+            if (ImGui::MenuItem("fisheye") && p_image_)
+            {
+                p_image_->enable_selecting(false);
+                p_image_->set_fish();
+                p_image_->warping();
+                p_image_->init_selections();
+            }
+            if (ImGui::MenuItem("IDW") && p_image_)
+            {
+                p_image_->enable_selecting(true);
+                p_image_->set_IDW();
+                p_image_->warping();
+                p_image_->init_selections();
+            }
+            if (ImGui::MenuItem("RBF") && p_image_)
+            {
+                p_image_->enable_selecting(true);
+                p_image_->set_RBF();
+                p_image_->warping();
+                p_image_->init_selections();
+            }
+            if (ImGui::MenuItem("MLS") && p_image_)
+            {
+                p_image_->enable_selecting(true);
+                p_image_->set_MLS();
+                p_image_->warping();
+                p_image_->init_selections();
+            }
+            ImGui::EndMenu();
         }
-        // HW2_TODO: You can add more interactions for IDW, RBF, etc.
+        ImGui::Separator();
         ImGui::Separator();
         if (ImGui::MenuItem("Restore") && p_image_)
         {
@@ -143,4 +169,5 @@ void ImageWarping::draw_save_image_file_dialog()
         flag_save_file_dialog_ = false;
     }
 }
+
 }  // namespace USTC_CG
