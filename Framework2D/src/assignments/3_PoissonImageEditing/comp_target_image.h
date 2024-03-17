@@ -2,6 +2,7 @@
 
 #include "comp_source_image.h"
 #include "view/comp_image.h"
+#include <memory>
 
 namespace USTC_CG
 {
@@ -13,7 +14,8 @@ class CompTargetImage : public ImageEditor
     {
         kDefault = 0,
         kPaste = 1,
-        kSeamless = 2
+        kSeamless = 2,
+        kMix = 3
     };
 
     explicit CompTargetImage(
@@ -28,9 +30,11 @@ class CompTargetImage : public ImageEditor
     void set_realtime(bool flag);
     void restore();
 
+
     // HW3_TODO: Add more types of cloning
     void set_paste();
     void set_seamless();
+    void set_mix();
     // The clone function
     void clone();
 

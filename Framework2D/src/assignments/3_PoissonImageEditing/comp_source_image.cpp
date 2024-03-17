@@ -43,9 +43,6 @@ void CompSourceImage::select_region()
         ImGuiButtonFlags_MouseButtonLeft);
     // Record the current status of the invisible button
     bool is_hovered_ = ImGui::IsItemHovered();
-    // HW3_TODO(optional): You can add more shapes for region selection. You can
-    // also consider using the implementation in HW1. (We use rectangle for
-    // example)
     ImGuiIO& io = ImGui::GetIO();
     if (is_hovered_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
@@ -66,14 +63,6 @@ void CompSourceImage::select_region()
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             draw_status_ = false;
-            // Update the selected region.
-            // HW3_TODO(optional): For other types of closed shapes, the most
-            // important part in region selection is to find the interior pixels
-            // of the region.
-            // We give an example of rectangle here.
-            //
-            // For polygon or freehand regions, you should inplement the
-            // "scanning line" algorithm, which is a well-known algorithm in CG.
             for (int i = 0; i < selected_region_->width(); ++i)
                 for (int j = 0; j < selected_region_->height(); ++j)
                     selected_region_->set_pixel(i, j, { 0 });
@@ -95,6 +84,7 @@ void CompSourceImage::select_region()
                     }
                     break;
                 }
+
                 default: break;
             }
         }
@@ -102,18 +92,17 @@ void CompSourceImage::select_region()
 
     // Visualization
     auto draw_list = ImGui::GetWindowDrawList();
-    ImVec2 s(start_.x + position_.x, start_.y + position_.y);
-    ImVec2 e(end_.x + position_.x, end_.y + position_.y);
-
     switch (region_type_)
     {
         case USTC_CG::CompSourceImage::kDefault: break;
         case USTC_CG::CompSourceImage::kRect:
         {
+            ImVec2 s(start_.x + position_.x, start_.y + position_.y);
+            ImVec2 e(end_.x + position_.x, end_.y + position_.y);
             if (e.x > s.x && e.y > s.y)
                 draw_list->AddRect(s, e, IM_COL32(255, 0, 0, 255), 2.0f);
             break;
-        }
+        }      
         default: break;
     }
 }

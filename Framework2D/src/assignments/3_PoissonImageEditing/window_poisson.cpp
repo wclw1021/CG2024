@@ -91,9 +91,21 @@ void WindowPoisson::draw_toolbar()
         add_tooltips(
             "Press this button and then click in the target image, to "
             "clone the selected region to the target image.");
-        // HW3_TODO: You may add more items in the menu for the different types
-        // of Poisson editing.
-
+        if (ImGui::MenuItem("Seamless") && p_target_ && p_source_)
+        {
+            p_target_->set_seamless();
+        }
+        add_tooltips(
+            "Press this button and then click in the target image, to "
+            "seamless clone the selected region to the target image.");
+        if (ImGui::MenuItem("Mix") && p_target_ && p_source_)
+        {
+            p_target_->set_mix();
+        }
+        add_tooltips(
+            "Press this button and then click in the target image, to "
+            "seamless clone the selected region to the target image by mix method.");
+        ImGui::Separator();
         ImGui::EndMainMenuBar();
     }
 }

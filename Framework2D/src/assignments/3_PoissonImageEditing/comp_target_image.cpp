@@ -1,6 +1,12 @@
 #include "comp_target_image.h"
-
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <cmath>
+#include "cloning.h"
+#include "paste.h"
+#include "seamless.h"
+#include "mix.h"
+#include <iostream>
 
 namespace USTC_CG
 {
@@ -77,16 +83,13 @@ void CompTargetImage::set_seamless()
     clone_type_ = kSeamless;
 }
 
+void CompTargetImage::set_mix()
+{
+    clone_type_ = kMix;
+}
+
 void CompTargetImage::clone()
 {
-    // The implementation of different types of cloning
-    // HW3_TODO: In this function, you should at least implement the "seamless"
-    // cloning labeled by `clone_type_ ==kSeamless`.
-    //
-    // The realtime updating (update when the mouse is moving) is only available
-    // when the checkboard is selected. It is required to improve the efficiency
-    // of your seamless cloning to achieve realtime editing. (Use decomposition
-    // of sparse matrix before solve the linear system)
     std::shared_ptr<Image> mask = source_image_->get_region();
 
     switch (clone_type_)
@@ -95,57 +98,24 @@ void CompTargetImage::clone()
         case USTC_CG::CompTargetImage::kPaste:
         {
             restore();
-
-            for (int i = 0; i < mask->width(); ++i)
-            {
-                for (int j = 0; j < mask->height(); ++j)
-                {
-                    int tar_x =
-                        static_cast<int>(mouse_position_.x) + i -
-                        static_cast<int>(source_image_->get_position().x);
-                    int tar_y =
-                        static_cast<int>(mouse_position_.y) + j -
-                        static_cast<int>(source_image_->get_position().y);
-                    if (0 <= tar_x && tar_x < image_width_ && 0 <= tar_y &&
-                        tar_y < image_height_ && mask->get_pixel(i, j)[0] > 0)
-                    {
-                        data_->set_pixel(
-                            tar_x,
-                            tar_y,
-                            source_image_->get_data()->get_pixel(i, j));
-                    }
-                }
-            }
+            Paste paste(mouse_position_,source_image_,image_width_,image_height_,data_);
+            paste.depict(mask);
             break;
         }
+        // poisson editing
         case USTC_CG::CompTargetImage::kSeamless:
         {
-            // You should delete this block and implement your own seamless
-            // cloning. For each pixel in the selected region, calculate the
-            // final RGB color by solving Poisson Equations.
             restore();
-
-            for (int i = 0; i < mask->width(); ++i)
-            {
-                for (int j = 0; j < mask->height(); ++j)
-                {
-                    int tar_x =
-                        static_cast<int>(mouse_position_.x) + i -
-                        static_cast<int>(source_image_->get_position().x);
-                    int tar_y =
-                        static_cast<int>(mouse_position_.y) + j -
-                        static_cast<int>(source_image_->get_position().y);
-                    if (0 <= tar_x && tar_x < image_width_ && 0 <= tar_y &&
-                        tar_y < image_height_ && mask->get_pixel(i, j)[0] > 0)
-                    {
-                        data_->set_pixel(
-                            tar_x,
-                            tar_y,
-                            source_image_->get_data()->get_pixel(i, j));
-                    }
-                }
-            }
-
+            Seamless seamless(mouse_position_,source_image_,image_width_,image_height_,data_);
+            seamless.depict(mask);
+            break;
+        }
+        // mix method, like the formal one
+        case USTC_CG::CompTargetImage::kMix:
+        {
+            restore();
+            Mix mix(mouse_position_,source_image_,image_width_,image_height_,data_);
+            mix.depict(mask);
             break;
         }
         default: break;
