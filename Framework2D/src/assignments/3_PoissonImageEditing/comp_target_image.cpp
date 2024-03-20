@@ -90,6 +90,17 @@ void CompTargetImage::set_mix()
 
 void CompTargetImage::clone()
 {
+    // The implementation of different types of cloning
+    // HW3_TODO: In this function, you should at least implement the "seamless"
+    // cloning labeled by `clone_type_ ==kSeamless`.
+    //
+    // The realtime updating (update when the mouse is moving) is only available
+    // when the checkboard is selected. It is required to improve the efficiency
+    // of your seamless cloning to achieve realtime editing. (Use decomposition
+    // of sparse matrix before solve the linear system)
+    if (data_ == nullptr || source_image_ == nullptr ||
+        source_image_->get_region() == nullptr)
+        return;
     std::shared_ptr<Image> mask = source_image_->get_region();
 
     switch (clone_type_)
