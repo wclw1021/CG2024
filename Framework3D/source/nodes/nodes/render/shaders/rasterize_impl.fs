@@ -33,6 +33,7 @@ void main() {
     normal = normalize(vertexNormal);
 
     // HW6_TODO: Apply normal map here. Use normal textures to modify vertex normals.
+    
 
     // Calculate tangent and bitangent
     vec3 edge1 = dFdx(vertexPosition);

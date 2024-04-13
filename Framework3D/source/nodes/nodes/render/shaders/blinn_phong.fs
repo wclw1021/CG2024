@@ -49,6 +49,8 @@ float shadow_map_value = texture(shadow_maps, vec3(uv, lights[i].shadow_map_id))
 // Visualization of shadow map
 Color += vec4(shadow_map_value, 0, 0, 1);
 
+
+
 // HW6_TODO: first comment the line above ("Color +=..."). That's for quick Visualization.
 // You should first do the Blinn Phong shading here. You can use roughness to modify alpha. Or you can pass in an alpha value through the uniform above.
 

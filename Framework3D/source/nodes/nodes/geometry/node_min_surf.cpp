@@ -4,6 +4,8 @@
 #include "Nodes/node_register.h"
 #include "geom_node_base.h"
 #include "utils/util_openmesh_bind.h"
+#include "Eigen/Sparse"
+#include "Eigen/Dense"
 
 /*
 ** @brief HW4_TutteParameterization
@@ -27,7 +29,7 @@ static void node_min_surf_declare(NodeDeclarationBuilder& b)
 {
     // Input-1: Original 3D mesh with boundary
     b.add_input<decl::Geometry>("Input");
-
+    b.add_input<decl::Int>("Cotangent weights").min(0).max(1).default_val(0);
     /*
     ** NOTE: You can add more inputs or outputs if necessary. For example, in some cases,
     ** additional information (e.g. other mesh geometry, other parameters) is required to perform
@@ -50,12 +52,12 @@ static void node_min_surf_exec(ExeParams params)
 {
     // Get the input from params
     auto input = params.get_input<GOperandBase>("Input");
-
+    auto is_cotangent = params.get_input<int>("Cotangent weights");
     // (TO BE UPDATED) Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>()) {
         throw std::runtime_error("Minimal Surface: Need Geometry Input.");
     }
-    throw std::runtime_error("Not implemented");
+    // throw std::runtime_error("Not implemented");
 
     /* ----------------------------- Preprocess -------------------------------
     ** Create a halfedge structure (using OpenMesh) for the input mesh. The
@@ -64,50 +66,88 @@ static void node_min_surf_exec(ExeParams params)
     ** mesh elements.
     */
     auto halfedge_mesh = operand_to_openmesh(&input);
-
-    /* ---------------- [HW4_TODO] TASK 1: Minimal Surface --------------------
-    ** In this task, you are required to generate a 'minimal surface' mesh with
-    ** the boundary of the input mesh as its boundary.
-    **
-    ** Specifically, the positions of the boundary vertices of the input mesh
-    ** should be fixed. By solving a global Laplace equation on the mesh,
-    ** recalculate the coordinates of the vertices inside the mesh to achieve
-    ** the minimal surface configuration.
-    **
-    ** (Recall the Poisson equation with Dirichlet Boundary Condition in HW3)
-    */
-
-    /*
-    ** Algorithm Pseudocode for Minimal Surface Calculation
-    ** ------------------------------------------------------------------------
-    ** 1. Initialize mesh with input boundary conditions.
-    **    - For each boundary vertex, fix its position.
-    **    - For internal vertices, initialize with initial guess if necessary.
-    **
-    ** 2. Construct Laplacian matrix for the mesh.
-    **    - Compute weights for each edge based on the chosen weighting scheme
-    **      (e.g., uniform weights for simplicity).
-    **    - Assemble the global Laplacian matrix.
-    **
-    ** 3. Solve the Laplace equation for interior vertices.
-    **    - Apply Dirichlet boundary conditions for boundary vertices.
-    **    - Solve the linear system (Laplacian * X = 0) to find new positions
-    **      for internal vertices.
-    **
-    ** 4. Update mesh geometry with new vertex positions.
-    **    - Ensure the mesh respects the minimal surface configuration.
-    **
-    ** Note: This pseudocode outlines the general steps for calculating a
-    ** minimal surface mesh given fixed boundary conditions using the Laplace
-    ** equation. The specific implementation details may vary based on the mesh
-    ** representation and numerical methods used.
-    **
-    */
-
-    /* ----------------------------- Postprocess ------------------------------
-    ** Convert the minimal surface mesh from the halfedge structure back to
-    ** GOperandBase format as the node's output.
-    */
+    
+    // construct the sparse equation, we use all the vertex to construct
+    int num = static_cast<int>(halfedge_mesh -> n_vertices());
+    Eigen::SparseMatrix<double> A(num,num);
+    std::vector<Eigen::MatrixXd> b(3,Eigen::MatrixXd::Zero(num, 1));
+    if (! is_cotangent)
+    {
+        for (const auto& vertex_handle : halfedge_mesh->vertices())
+        {
+            int i = vertex_handle.idx();
+            if (vertex_handle.is_boundary())
+            {
+                A.coeffRef(i, i) = 1;
+                for (int k = 0; k < 3; k++)
+                {
+                    b[k](i) = halfedge_mesh->point(vertex_handle)[k];
+                }
+            }
+            else
+            {
+                for (const auto& halfedge_handle : vertex_handle.outgoing_halfedges())
+                {
+                    A.coeffRef(i, i) += 1;
+                    A.coeffRef(i,halfedge_handle.to().idx()) = -1;
+                }
+            } 
+        }
+    }
+    else
+    {
+        for (const auto& vertex_handle : halfedge_mesh->vertices())
+        {
+            int i = vertex_handle.idx();
+            A.coeffRef(i, i) = 1;
+            if (vertex_handle.is_boundary())
+            {
+                for (int k = 0; k < 3; k++)
+                {
+                    b[k](i) = halfedge_mesh->point(vertex_handle)[k];
+                }
+            }
+            else
+            {
+                const auto& position = halfedge_mesh->point(vertex_handle);
+                float omega_sum = 0.0f;
+                for (const auto& halfedge_handle : vertex_handle.outgoing_halfedges())
+                {
+                    const auto& v1 = halfedge_handle.to();
+                    const auto& v2 = halfedge_handle.prev().opp().to();
+                    const auto& v3 = halfedge_handle.prev().opp().prev().opp().to();
+                    const auto& vec1 = halfedge_mesh->point(v1) - position;
+                    const auto& vec2 = halfedge_mesh->point(v3) - position;
+                    const auto& vec3 = halfedge_mesh->point(v1) - halfedge_mesh->point(v2);
+                    const auto& vec4 = halfedge_mesh->point(v3) - halfedge_mesh->point(v2);
+                    float cos_1 = vec1.dot(vec3) / (vec1.norm() * vec3.norm());
+                    float cos_2 = vec2.dot(vec4) / (vec2.norm() * vec4.norm());
+                    float Omega = 1/tan(acosf(cos_1)) + 1/tan(acosf(cos_2));
+                    omega_sum = omega_sum + Omega;
+                    A.coeffRef(i,halfedge_handle.prev().opp().to().idx()) = -Omega;
+                }
+                for (const auto& halfedge_handle : vertex_handle.outgoing_halfedges())
+                {
+                    A.coeffRef(i, halfedge_handle.to().idx()) = A.coeffRef(i, halfedge_handle.to().idx()) / omega_sum;
+                }
+            } 
+        }
+    }
+    
+    // record the solution
+    std::vector<Eigen::VectorXd> X(3);
+    for (int k = 0; k < 3; k++)
+    {
+        Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+        solver.compute(A);
+        X[k] = solver.solve(b[k]);
+    }
+    // reconstruct
+    for (const auto& vertex_handle : halfedge_mesh->vertices())
+    {
+        int i = vertex_handle.idx();
+        halfedge_mesh->set_point(vertex_handle, {X[0](i),X[1](i), X[2](i)});
+    }
     auto operand_base = openmesh_to_operand(halfedge_mesh.get());
 
     // Set the output of the nodes
