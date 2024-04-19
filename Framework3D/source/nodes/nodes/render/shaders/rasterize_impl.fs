@@ -50,4 +50,6 @@ void main() {
     }
     tangent = normalize(tangent - dot(tangent, normal) * normal);
     vec3 bitangent = normalize(cross(tangent,normal));
+
+    normal = mat3 (tangent,bitangent,normal) * (2*normalmap_value -1 );
 }
