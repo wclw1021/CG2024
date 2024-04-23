@@ -315,7 +315,29 @@ Color Hd_USTC_CG_Rect_Light::Sample(
     float& sample_light_pdf,
     const std::function<float()>& uniform_float)
 {
-    return {};
+    // sample on the rec light with uniform_float()
+    GfVec3f sampledDir;
+    sampledDir =
+        uniform_float() * (corner1 - corner0) + uniform_float() * (corner2 - corner0) + corner0;
+    auto distanceVec = sampledDir - pos;
+
+    auto basis = constructONB(-distanceVec.GetNormalized());
+
+    float sample_pos_pdf = 1 / width / height;
+
+    sampled_light_pos = sampledDir;
+
+    dir = (sampledDir - pos).GetNormalized();
+    auto distance = (sampledDir - pos).GetLength();
+
+    float cosVal = GfDot(-dir, GfCross(corner1-corner0,corner2-corner0).GetNormalized());
+
+    sample_light_pdf = sample_pos_pdf /  cosVal * distance * distance;
+
+    if (cosVal < 0) {
+        return Color{ 0 };
+    }
+    return power / M_PI / width / height;
 }
 
 Color Hd_USTC_CG_Rect_Light::Intersect(const GfRay& ray, float& depth)
@@ -343,8 +365,6 @@ void Hd_USTC_CG_Rect_Light::Sync(
 
     auto diffuse = sceneDelegate->GetLightParamValue(id, HdLightTokens->diffuse).Get<float>();
     power = sceneDelegate->GetLightParamValue(id, HdLightTokens->color).Get<GfVec3f>() * diffuse;
-
-    // HW7_TODO: calculate irradiance
 }
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

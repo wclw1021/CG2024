@@ -3,8 +3,13 @@
 #include <random>
 
 #include "surfaceInteraction.h"
+#include <utils/sampling.hpp>
+#include <cmath>
+
 USTC_CG_NAMESPACE_OPEN_SCOPE
 using namespace pxr;
+
+float RussianRouletteProbability();
 
 VtValue PathIntegrator::Li(const GfRay& ray, std::default_random_engine& random)
 {
@@ -48,12 +53,38 @@ GfVec3f PathIntegrator::EstimateOutGoingRadiance(
     GfVec3f color{ 0 };
     GfVec3f directLight = EstimateDirectLight(si, uniform_float);
 
-    // HW7_TODO: Estimate global lighting here.
-    GfVec3f globalLight = GfVec3f{0.f};
+    GfVec3f globalLight;
+    float pdf;
+    float p_rr = 0.9;
+
+    // judge the prr
+    if (uniform_float() < p_rr) {
+        
+        // sample on the point
+        auto wi = UniformSampleHemiSphere(GfVec2f{ uniform_float(), uniform_float() }, pdf).GetNormalized();
+
+        // get the normal
+        auto normal = si.geometricNormal;
+
+        auto basis = constructONB(normal);
+        wi = basis * wi;
+
+        // get a new ray
+        GfRay new_ray(si.position, wi);
+        
+        GfVec3f indirectRadiance =
+                EstimateOutGoingRadiance(new_ray, uniform_float, recursion_depth + 1);
+
+        // calculate the light
+        auto brdf = si.Eval(wi);
+        float cos_theta = GfDot(normal, wi.GetNormalized());
+        globalLight = GfCompMult(indirectRadiance, brdf) * cos_theta / pdf / p_rr;
+    }
 
     color = directLight + globalLight;
 
     return color;
 }
+
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE
