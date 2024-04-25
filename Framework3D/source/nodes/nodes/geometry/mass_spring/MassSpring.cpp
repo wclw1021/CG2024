@@ -49,14 +49,23 @@ void MassSpring::step()
         TIC(step)
 
         // (HW TODO) 
-        // auto H_elastic = computeHessianSparse(stiffness);  // size = [nx3, nx3]
+        auto H_elastic = computeHessianSparse(stiffness);
+        auto nabla_e = computeGrad(stiffness);
 
         // compute Y 
+        Eigen::MatrixXd acceleration_ext_ = Eigen::MatrixXd::Zero(X.rows(), X.cols());
+        acceleration_ext_.rowwise() += acceleration_ext.transpose();
+        Eigen::MatrixXd Y = Eigen::MatrixXd::Zero(3 * X.rows(), 1);
+        Y = X + h * vel + pow(h, 2) * flatten(acceleration_ext_);
 
         // Solve Newton's search direction with linear solver 
-        
+        Eigen::MatrixXd nabla_g = Eigen::MatrixXd::Zero(X.rows(), X.cols());
+        nabla_g = unflatten(1 / std::pow(h, 2) * (X - Y) + flatten(nabla_e));
         // update X and vel 
-
+        X = unflatten(flatten(X) - H_elastic.cwiseInverse()*flatten(nabla_g));
+        Eigen::MatrixXd acceleration = -computeGrad(stiffness);
+        acceleration.rowwise() += acceleration_ext.transpose();
+        vel = unflatten(flatten(vel) + h * (flatten(acceleration)));
         TOC(step)
     }
     else if (time_integrator == SEMI_IMPLICIT_EULER) {
@@ -73,9 +82,17 @@ void MassSpring::step()
         // -----------------------------------------------
 
         // (HW TODO): Implement semi-implicit Euler time integration
-
+        for (int i = 0; i < X.rows(); i++) {
+            if (dirichlet_bc_mask[i] == true)
+            {
+                vel.row(i) = Eigen::MatrixXd::Zero(1, X.cols());
+                acceleration.row(i) = Eigen::MatrixXd::Zero(1, X.cols());
+            }
+        }
         // Update X and vel 
-        
+        vel = unflatten(flatten(vel) + h * (flatten(acceleration)));
+        vel *= vel * damping;
+        X = unflatten(flatten(X) + h* vel);
     }
     else {
         std::cerr << "Unknown time integrator!" << std::endl;
@@ -100,16 +117,16 @@ double MassSpring::computeEnergy(double stiffness)
     }
     return sum;
 }
-
+// compute the gradient
 Eigen::MatrixXd MassSpring::computeGrad(double stiffness)
 {
     Eigen::MatrixXd g = Eigen::MatrixXd::Zero(X.rows(), X.cols());
     unsigned i = 0;
     for (const auto& e : E) {
-        // --------------------------------------------------
-        // (HW TODO): Implement the gradient computation
-        
-        // --------------------------------------------------
+        auto diff = X.row(e.first) - X.row(e.second);
+        auto l = E_rest_length[i];
+        g.row(e.first) += stiffness * (diff.norm() - l) * diff / diff.norm();
+        g.row(e.second) += stiffness * (diff.norm() - l) * -diff / diff.norm();
         i++;
     }
     return g;
@@ -124,6 +141,19 @@ Eigen::SparseMatrix<double> MassSpring::computeHessianSparse(double stiffness)
     auto k = stiffness;
     const auto I = Eigen::MatrixXd::Identity(3, 3);
     for (const auto& e : E) {
+        auto diff = X.row(e.first) - X.row(e.second);
+        auto l = E_rest_length[i];
+        Eigen::MatrixXd H_jk;
+        int j = e.first;
+        int k = e.second;
+        auto diff_norm = diff.norm();
+        H_jk = stiffness * diff * diff.transpose() / std::pow(diff_norm, 2) +
+               stiffness * (1 - l / diff_norm) *
+                   (I - diff * diff.transpose() / std::pow(diff_norm, 2));
+        H.block(3 * j, 3 * j, 3, 3) += H_jk;
+        H.block(3 * k, 3 * k, 3, 3) += H_jk;
+        H.block(3 * j, 3 * k, 3, 3) -= H_jk;
+        H.block(3 * k, 3 * j, 3, 3) -= H_jk;
         // --------------------------------------------------
         // (HW TODO): Implement the sparse version Hessian computation
         // Remember to consider fixed points 
