@@ -1,5 +1,7 @@
 #include "MassSpring.h"
 #include <iostream>
+#include <chrono>
+#include <algorithm>
 
 namespace USTC_CG::node_mass_spring {
 MassSpring::MassSpring(const Eigen::MatrixXd& X, const EdgeSet& E)
@@ -49,35 +51,60 @@ void MassSpring::step()
 
         // (HW TODO) 
         auto H_elastic = computeHessianSparse(stiffness);
+        for (int i = 0; i < X.rows(); i++) {
+            if (dirichlet_bc_mask[i] == true)
+            {
+                for (int j = 0; j < 3*X.rows(); j++)
+                {
+                    H_elastic.coeffRef(3*i, j) = 0;
+                    H_elastic.coeffRef(3*i+1, j) = 0;
+                    H_elastic.coeffRef(3*i+2, j) = 0;
+                }
+                H_elastic.coeffRef(3*i, 3*i) = 1;
+                H_elastic.coeffRef(3*i+1, 3*i+1) = 1;
+                H_elastic.coeffRef(3*i+2, 3*i+2) = 1;
+            }
+        }
         auto nabla_e = computeGrad(stiffness);
 
         // compute Y 
         Eigen::MatrixXd acceleration_ext_ = Eigen::MatrixXd::Zero(X.rows(), X.cols());
         acceleration_ext_.rowwise() += acceleration_ext.transpose();
+        // if (enable_sphere_collision) {
+        //     acceleration_ext_ += acceleration_collision;
+        // }
         Eigen::MatrixXd Y = Eigen::MatrixXd::Zero(3 * X.rows(), 1);
-        Y = X + h * vel + pow(h, 2) * flatten(acceleration_ext_);
+        Y = flatten(X + h * vel + pow(h, 2) * acceleration_ext_);
 
         // Solve Newton's search direction with linear solver 
         Eigen::MatrixXd nabla_g = Eigen::MatrixXd::Zero(X.rows(), X.cols());
-        nabla_g = unflatten(1 / std::pow(h, 2) * (X - Y) + flatten(nabla_e));
+        nabla_g = mass_per_vertex / std::pow(h, 2) * (X - unflatten(Y)) + nabla_e;
+        Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+        solver.compute(H_elastic);
+        Eigen::MatrixXd Delta_X;
+        for (int i = 0; i < X.rows(); i++) {
+            if (dirichlet_bc_mask[i] == true)
+            {
+                nabla_g(i, 0) = nabla_g(i, 1) = nabla_g(i, 2) = 0;
+            }
+        }
+        Delta_X = solver.solve(flatten(nabla_g));
         // update X and vel 
-        X = unflatten(flatten(X) - H_elastic.cwiseInverse()*flatten(nabla_g));
-        Eigen::MatrixXd acceleration = -computeGrad(stiffness);
-        acceleration.rowwise() += acceleration_ext.transpose();
-        vel = unflatten(flatten(vel) + h * (flatten(acceleration)));
+        X = unflatten(flatten(X) - Delta_X);
+        vel = unflatten(-Delta_X / h);
         TOC(step)
     }
     else if (time_integrator == SEMI_IMPLICIT_EULER) {
 
         // Semi-implicit Euler
-        Eigen::MatrixXd acceleration = -computeGrad(stiffness) / mass_per_vertex;
+        Eigen::MatrixXd acceleration = -computeGrad(stiffness);
         acceleration.rowwise() += acceleration_ext.transpose();
 
         // -----------------------------------------------
         // (HW Optional)
-        if (enable_sphere_collision) {
-            acceleration += acceleration_collision;
-        }
+        // if (enable_sphere_collision) {
+        //     acceleration += acceleration_collision;
+        // }
         // -----------------------------------------------
 
         // (HW TODO): Implement semi-implicit Euler time integration
@@ -89,9 +116,9 @@ void MassSpring::step()
             }
         }
         // Update X and vel 
-        vel = unflatten(flatten(vel) + h * (flatten(acceleration)));
-        vel *= vel * damping;
-        X = unflatten(flatten(X) + h* vel);
+        vel = unflatten(flatten(vel) + h * (flatten(acceleration))/mass_per_vertex);
+        vel *= damping;
+        X = X + h * vel;
     }
     else {
         std::cerr << "Unknown time integrator!" << std::endl;
@@ -137,7 +164,6 @@ Eigen::SparseMatrix<double> MassSpring::computeHessianSparse(double stiffness)
     Eigen::SparseMatrix<double> H(n_vertices * 3, n_vertices * 3);
 
     unsigned i = 0;
-    auto k = stiffness;
     const auto I = Eigen::MatrixXd::Identity(3, 3);
     for (const auto& e : E) {
         auto diff = X.row(e.first) - X.row(e.second);
@@ -146,13 +172,19 @@ Eigen::SparseMatrix<double> MassSpring::computeHessianSparse(double stiffness)
         int j = e.first;
         int k = e.second;
         auto diff_norm = diff.norm();
-        H_jk = stiffness * diff * diff.transpose() / std::pow(diff_norm, 2) +
+        H_jk = stiffness * diff.transpose()* diff / std::pow(diff_norm, 2) +
                stiffness * (1 - l / diff_norm) *
-                   (I - diff * diff.transpose() / std::pow(diff_norm, 2));
-        H.block(3 * j, 3 * j, 3, 3) += H_jk;
-        H.block(3 * k, 3 * k, 3, 3) += H_jk;
-        H.block(3 * j, 3 * k, 3, 3) -= H_jk;
-        H.block(3 * k, 3 * j, 3, 3) -= H_jk;
+                   (I - diff.transpose() * diff/ std::pow(diff_norm, 2));
+        for (int row = 0; row < 3; ++row)
+        {
+            for (int col = 0; col < 3; ++col)
+            {
+                H.coeffRef(3 * j + row, 3 * j + col) += H_jk(row,col);
+                H.coeffRef(3 * k + row, 3 * k + col) += H_jk(row, col);
+                H.coeffRef(3 * j + row, 3 * k + col) -= H_jk(row, col);
+                H.coeffRef(3 * k + row, 3 * j + col) -= H_jk(row, col);
+            }
+        }
         // --------------------------------------------------
         // (HW TODO): Implement the sparse version Hessian computation
         // Remember to consider fixed points 
@@ -162,7 +194,10 @@ Eigen::SparseMatrix<double> MassSpring::computeHessianSparse(double stiffness)
 
         i++;
     }
-    
+    double mass_per_vertex = mass / n_vertices; 
+    for (int row = 0; row < n_vertices * 3; row++) {
+        H.coeffRef(row, row) += mass_per_vertex/ h / h;
+    }
     H.makeCompressed();
     return H;
 }
@@ -189,9 +224,13 @@ void MassSpring::reset()
 Eigen::MatrixXd MassSpring::getSphereCollisionForce(Eigen::Vector3d center, double radius)
 {
     Eigen::MatrixXd force = Eigen::MatrixXd::Zero(X.rows(), X.cols());
-    for (int i = 0; i < X.rows(); i++) {
-       // (HW Optional) Implement penalty-based force here 
-    }
+    // float s = 1.1;
+    // for (int i = 0; i < X.rows(); i++) {
+    //    // (HW Optional) Implement penalty-based force here 
+    //     auto diff = X.row(i) - center.transpose(); 
+    //     force.row(i) =
+    //         collision_penalty_k * std::max(s * radius - diff.norm(), 0.0) * diff / diff.norm();
+    // }
     return force;
 }
 // ----------------------------------------------------------------------------------
