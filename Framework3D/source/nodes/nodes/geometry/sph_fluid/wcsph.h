@@ -16,8 +16,9 @@ class WCSPH : public SPHBase {
     ~WCSPH() = default;
 
     void step() override;
-    virtual void compute_density() override;
+//    virtual void compute_density() override;
 
+    double compute_pressure_acceleration(const std::shared_ptr<Particle>& p) override;
     inline double& stiffness() 
     {
         return stiffness_;

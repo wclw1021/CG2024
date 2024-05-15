@@ -4,6 +4,7 @@
 #include <omp.h>
 #include <iostream>
 #include "colormap_jet.h"
+#include "wcsph.h"
 
 namespace USTC_CG::node_sph_fluid {
 using namespace Eigen;
@@ -80,13 +81,14 @@ void SPHBase::compute_density()
     for (auto& p : ps_.particles()) {
 
         // ... necessary initialization of particle p's density here  
-
+        double p_density = ps_.mass();
         // Then traverse all neighbor fluid particles of p
         for (auto& q : p->neighbors()) {
-
+            auto w_ij = W(p->x() - q->x(), ps_.h());
+            p_density += w_ij * ps_.mass();
             // ... compute the density contribution from q to p
-
         }
+        p->density_ = p_density;
     }
 }
 
@@ -97,22 +99,21 @@ void SPHBase::compute_pressure()
 
 void SPHBase::compute_non_pressure_acceleration()
 {
-    // (HW TODO) Traverse all particles to compute each particle's non-pressure acceleration 
+    // (HW TODO) Traverse all particles to compute each particle's non-pressure acceleration
     for (auto& p : ps_.particles()) {
-
         // necessary code here to compute particle p's acceleration include gravity and viscosity
         // We do not consider surface tension in this assignment, but you can add it if you like
+        Vector3d p_viscosity = { 0, 0, 0 };
+        for (auto& q : p->neighbors()) {
 
-        //for (auto& q : p->neighbors()) {
-        // 
-        // Prompt: use the "compute_viscosity_acceleration" function to compute the viscosity acceleration between p and q"
-        // 
-        //}
-
-
+            // Prompt: use the "compute_viscosity_acceleration" function to compute the viscosity
+            // acceleration between p and q"
+            p_viscosity += compute_viscosity_acceleration(p, q);
+        }
+        p_viscosity *= 10;
+        p->acceleration_ = p_viscosity + gravity_;
     }
 }
-
 // compute viscosity acceleration between two particles
 Vector3d SPHBase::compute_viscosity_acceleration(
     const std::shared_ptr<Particle>& p,
@@ -120,21 +121,40 @@ Vector3d SPHBase::compute_viscosity_acceleration(
 {
     auto v_ij = p->vel() - q->vel();
     auto x_ij = p->x() - q->x();
-    Vector3d grad = grad_W(p->x() - q->x(), ps_.h());
+    auto x_ij_norm = x_ij.norm();
+    Vector3d grad_W_ij = grad_W(p->x() - q->x(), ps_.h());
+    Vector3d laplace_v = ps_.mass() * x_ij.dot(v_ij) * grad_W_ij / q->density() /
+                         (std::pow(x_ij_norm, 2) + 0.01 * std::pow(ps_.h(), 2));
 
-    // Vector3d laplace_v = ... 
-
-    //return this->viscosity_ * laplace_v;
-
-    return Vector3d::Zero();
+    return viscosity_ * laplace_v;
 }
 
 // Traverse all particles and compute pressure gradient acceleration
 void SPHBase::compute_pressure_gradient_acceleration()
 {
-    for (auto& p : ps_.particles()) {
+    for (auto& p : ps_.particles()) { 
         // (HW TODO) Traverse all particles and compute each particle's acceleration from pressure gradient force
+        auto p_density = p->density();
+        auto p_i = compute_pressure_acceleration(p);
+        Vector3d nabla_p = { 0, 0, 0 };
+        for (auto& q : p->neighbors()) {
+            // Prompt: use the "compute_viscosity_acceleration" function to compute the viscosity
+            // acceleration between p and q"
+            auto q_density = q->density();
+            Vector3d grad_W_ij = grad_W(p->x() - q->x(), ps_.h());
+            auto q_i = compute_pressure_acceleration(q);
+            nabla_p += ps_.mass() * (p_i / std::pow(p_density, 2) + q_i / std::pow(q_density, 2)) *
+                       grad_W_ij;
+        }
+        p->acceleration_ = -nabla_p;
     }
+}
+
+// compute pressure
+double SPHBase::compute_pressure_acceleration(const std::shared_ptr<Particle>& p)
+{
+    std::cout << "qwq" << std::endl;
+    return 0;
 }
 
 void SPHBase::step()
@@ -155,6 +175,7 @@ void SPHBase::advect()
         // Your code here 
 
         // ---------------------------------------------------------
+        check_collision(p);
         vel_.row(p->idx()) = p->vel().transpose();
         X_.row(p->idx()) = p->x().transpose();
     }

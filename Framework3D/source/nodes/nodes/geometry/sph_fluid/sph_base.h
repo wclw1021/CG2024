@@ -47,6 +47,8 @@ class SPHBase {
 
     virtual void compute_pressure_gradient_acceleration();
 
+    virtual double compute_pressure_acceleration(const std::shared_ptr<Particle>& p);
+
     virtual void compute_non_pressure_acceleration();
 
     virtual void compute_pressure();
