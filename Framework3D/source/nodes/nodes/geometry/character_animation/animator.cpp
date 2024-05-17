@@ -12,7 +12,7 @@ Joint::Joint(int idx, string name, int parent_idx) : idx_(idx), name_(name), par
 void Joint::compute_world_transform()
 {
     // ---------- (HW TODO) Compute world space trasform of this joint -----------------
-
+    
     // --------------------------------------------------------------------------------
 }
 
