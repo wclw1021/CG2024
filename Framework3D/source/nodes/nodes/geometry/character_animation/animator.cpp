@@ -12,8 +12,9 @@ Joint::Joint(int idx, string name, int parent_idx, const GfMatrix4f& bind_transf
 
 void Joint::compute_world_transform()
 {
-    // ---------- (HW TODO) Compute world space trasform of this joint -----------------
     
+    // ---------- (HW TODO) Compute world space transform of this joint -----------------
+    joint.world_transform_ = joint.parent_->get_world_transform(). joint.local_transform_;
     // --------------------------------------------------------------------------------
 }
 
@@ -22,6 +23,10 @@ void JointTree::compute_world_transforms_for_each_joint()
     // ----------- (HW_TODO) Traverse all joint and compute its world space transform ---
 	// Call compute_world_transform for each joint
     // ---------------------------------------------
+    auto n = static_cast<int>( joints_.size());
+    for (int i = 0; i < n; i++) {
+        joints_[i]->world_transform_ = compute
+    }
 }
 
 void JointTree::add_joint(int idx, std::string name, int parent_idx, const GfMatrix4f& bind_transform)
