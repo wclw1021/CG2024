@@ -14,7 +14,12 @@ void Joint::compute_world_transform()
 {
     
     // ---------- (HW TODO) Compute world space transform of this joint -----------------
-    joint.world_transform_ = joint.parent_->get_world_transform(). joint.local_transform_;
+    if (parent_idx_ < 0) {
+        world_transform_ = local_transform_;
+    }
+    else {
+        world_transform_ = local_transform_ * parent_->world_transform_;
+    }
     // --------------------------------------------------------------------------------
 }
 
@@ -25,7 +30,7 @@ void JointTree::compute_world_transforms_for_each_joint()
     // ---------------------------------------------
     auto n = static_cast<int>( joints_.size());
     for (int i = 0; i < n; i++) {
-        joints_[i]->world_transform_ = compute
+        joints_[i]->compute_world_transform();
     }
 }
 
@@ -96,9 +101,25 @@ void Animator::update_mesh_vertices()
 {
 	// ----------- (HW_TODO) Update mesh vertices according to the current joint transforms ----
 	// 1. get skel_->jointIndices and skel_->jointWeight;
+    
 	// 2. For each vertex, compute the new position by transforming the rest position with the joint transforms
 	// 2. Update the vertex position in the mesh
 	// --------------------------------------------------------------------------------
+    auto& vertices = mesh_->vertices;
+    int n = static_cast<int>(vertices.size());
+    int m = skel_->jointIndices.size() / n;
+    for (int i = 0; i < n; i++) {
+        GfVec3f x = { 0, 0, 0 };
+        for (int j = 0; j < m; j++)
+        {
+            int temp = i * m + j;
+            int id = skel_->jointIndices[temp];
+            x += skel_->jointWeight[temp] * joint_tree_.get_joint(id)->get_world_transform().TransformAffine(
+                 joint_tree_.get_joint(id)->get_bind_transform().GetInverse().TransformAffine(
+                     vertices[i]));
+        }
+        vertices[i] = x;
+    }    
 }
 
 }  // namespace USTC_CG::node_character_animation
